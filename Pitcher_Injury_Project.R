@@ -19,7 +19,7 @@ pitching <- read.csv("/Users/nchapman/Documents/Documents/MSAS/spring_2020/MAT84
                      sep = '|',
                      header =TRUE)
 
-attach(pitching)
+attach(pitching) 
 
 rownames(pitching) <- paste(as.character(pitching$Name), as.character(pitching$Season))
 
@@ -43,7 +43,6 @@ cols_to_drop <-  as.data.frame(cols_to_drop)
 #write.csv(cols_to_drop,"/Users/nchapman/Documents/Documents/MSAS/spring_2020/MAT8406/Pitcher Injury Project/colstodrop.csv")
 
 
-
 ## Model Initialization
 
 
@@ -52,6 +51,37 @@ reg.2 <- glm(formula = injury_lagged ~ Pitches + Age + P_per_IP_accel_2 + prior_
                vFA..pi. + FA...pi. + tj + SI.Z..pi. + FA.Z..pi. + vFC..pi._accel_2 + wild_pitch_rate_accel_2
              , family = "binomial", data = pitching)
 summary(reg.2)
+
+
+
+
+#####################################################################################################################
+## Define Functions
+test_models_back <- function(x) {
+  
+  y <- stepAIC(x, direction="backward",steps=1)
+  rbind(cbind("AIC",AIC(y) < AIC(x)),
+        cbind("WALD",waldtest(x,y)$`Pr(>F)`[2] > .05),
+        cbind("LRT",lrtest(x,y)$`Pr(>Chisq)`[2] > .05))
+}
+
+test_models_forward <- function(x) {
+  
+  y <- stepAIC(x, direction="forward",steps=1, scope=list(lower=formula(x), upper=formula(full)))
+  rbind(cbind("AIC",AIC(y) < AIC(x)),
+        cbind("WALD",waldtest(x,y)$`Pr(>F)`[2] < .05),
+        cbind("LRT",lrtest(x,y)$`Pr(>Chisq)`[2] < .05))
+}
+
+test_models <- function(x, y) {
+  
+  rbind(cbind("AIC",AIC(y) < AIC(x)),
+        cbind("LRT",lrtest(x,y)$`Pr(>Chisq)`[2]))
+}
+
+
+#####################################################################################################################
+
 
 
 
@@ -85,10 +115,22 @@ reg.14 <- stepAIC(reg.13, direction="backward",steps=1)
 
 
 ### Rejected the  2 tests. Accepted
-reg.15 <- stepAIC(reg.14, direction="forward",steps=1, scope=list(lower=formula(reg.14), upper=formula(full)))
+reg.15 <- glm(formula = injury_lagged ~ P_per_IP_accel_2 + prior_injury_last_2 +
+                walk_rate + win_rec + IP_per_G + vFA..pi. + tj + walk_rate:IP_per_G, family = "binomial", 
+              data = pitching)
 
 ### Failed to reject the 2 tests
-reg.16 <- stepAIC(reg.15, direction="forward",steps=1, scope=list(lower=formula(reg.15), upper=formula(full)))
+reg.16 <- glm(formula = injury_lagged ~ P_per_IP_accel_2 + prior_injury_last_2 +
+                walk_rate + win_rec + IP_per_G + vFA..pi. + tj + walk_rate:IP_per_G
+              + SI.Z..pi., family = "binomial", 
+              data = pitching)
+
+### Failed to reject the 2 tests
+reg.17 <- glm(formula = injury_lagged ~ P_per_IP_accel_2 + prior_injury_last_2 + P_per_IP_accel_2:IP_per_G + 
+                walk_rate + win_rec + IP_per_G + vFA..pi. + tj + walk_rate:IP_per_G,
+              family = "binomial", 
+              data = pitching)
+
 
 ### Rejected the  2 tests. Accepted
 
@@ -147,41 +189,11 @@ reg.26 <- glm(formula = injury_lagged ~ P_per_IP_accel_2 + prior_injury_last_2 +
 
 
 ## Tested Models reg.2 to reg.26 using various functions.
-test_models(reg.25, reg.26)
+test_models(reg.15, reg.17)
 
 
 summary(reg.26)
 
-
-
-
-#####################################################################################################################
-
-test_models_back <- function(x) {
-  
-  y <- stepAIC(x, direction="backward",steps=1)
-  rbind(cbind("AIC",AIC(y) < AIC(x)),
-        cbind("WALD",waldtest(x,y)$`Pr(>F)`[2] > .05),
-        cbind("LRT",lrtest(x,y)$`Pr(>Chisq)`[2] > .05))
-}
-
-test_models_forward <- function(x) {
-  
-  y <- stepAIC(x, direction="forward",steps=1, scope=list(lower=formula(x), upper=formula(full)))
-  rbind(cbind("AIC",AIC(y) < AIC(x)),
-  cbind("WALD",waldtest(x,y)$`Pr(>F)`[2] < .05),
-  cbind("LRT",lrtest(x,y)$`Pr(>Chisq)`[2] < .05))
-}
-
-test_models <- function(x, y) {
-  
-  rbind(cbind("AIC",AIC(y) < AIC(x)),
-        cbind("WALD",waldtest(x,y)$`Pr(>F)`[2]),
-        cbind("LRT",lrtest(x,y)$`Pr(>Chisq)`[2]))
-}
-
-
-#####################################################################################################################
 
 
 ## VIF 
@@ -200,10 +212,15 @@ Data <- pitching[c("P_per_IP_accel_2", "walk_rate", "win_rec", "FA...pi.",
                    "wSI..pi._accel_2")]
 
 
+
+
 # apply it
 Trans_Data <- as.data.frame(center_scale(Data))
 
-fwd_vif <- glm(formula = sinkers_cutters_percent ~ P_per_IP_accel_2 + 
+Trans_Data$newrow <- sample(1000, size = nrow(Trans_Data), replace = TRUE)
+
+
+fwd_vif <- glm(formula = newrow ~ P_per_IP_accel_2 + 
                  + walk_rate + win_rec + IP_per_G + vFA..pi. +  P_per_IP + IP_accel_2 + FA...pi. +
                  + wFA..pi._accel_2 + wSI..pi._accel_2 + walk_rate:IP_per_G + 
                  P_per_IP:IP_accel_2 + wSI..pi._accel_2:wFA..pi._accel_2 + 
@@ -224,8 +241,10 @@ sort(vif(reg.26), decreasing = TRUE)
 
 ## Testing for Outliers/ Influence Points
 
+cols=ifelse (pitching$injury_lagged == 1, "red", "blue")
 
-influencePlot(reg.26,col="red")
+
+influencePlot(reg.26,col=cols)
 
 
 players <- as.character(pitching$Name)
@@ -279,7 +298,7 @@ par(op)
 }
 
 ## Plotted Betas 1 to k variables in reg.26
-plot_beta(3)
+plot_beta(2)
 
 
 
