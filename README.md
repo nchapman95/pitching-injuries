@@ -1,3 +1,3 @@
 # pitching-injuries
 
-![](southparkgiphy.gif)
+![](southparkpitch.gif)
